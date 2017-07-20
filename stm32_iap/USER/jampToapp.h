@@ -11,9 +11,10 @@
 
 typedef void(*pFunction)(void);
 
-void writeDataToflash(char *Send_Buffer);
+void writeDataToflash(char *Send_Buffer,int len);
 
-
+void initFlash(void);
+void saveFlash(void);
 
 
 

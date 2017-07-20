@@ -65,15 +65,17 @@ int GetKey (void)  {
 
 
 #if EN_USART1_RX   //Èç¹ûÊ¹ÄÜÁË½ÓÊÕ
+
 //´®¿Ú1ÖÐ¶Ï·þÎñ³ÌÐò
 //×¢Òâ,¶ÁÈ¡USARTx->SRÄÜ±ÜÃâÄªÃûÆäÃîµÄ´íÎó   	
-u8 USART_RX_BUF[USART_REC_LEN];     //½ÓÊÕ»º³å,×î´óUSART_REC_LEN¸ö×Ö½Ú.
+u8 USART_RX_BUF[USART_REC_LEN/2];     //½ÓÊÕ»º³å,×î´óUSART_REC_LEN¸ö×Ö½Ú.
 //½ÓÊÕ×´Ì¬
 //bit15£¬	½ÓÊÕÍê³É±êÖ¾
 //bit14£¬	½ÓÊÕµ½0x0d
 //bit13~0£¬	½ÓÊÕµ½µÄÓÐÐ§×Ö½ÚÊýÄ¿
 u16 USART_RX_STA=0;       //½ÓÊÕ×´Ì¬±ê¼Ç	  
 
+struct Fifo_usart uartFifo = {0,0,0};
 //³õÊ¼»¯IO ´®¿Ú1 
 //bound:²¨ÌØÂÊ
 void uart_init(u32 bound){
@@ -136,38 +138,80 @@ void USART1_IRQHandler(void)                	//´®¿Ú1ÖÐ¶ÏÏìÓ¦³ÌÐò		 ÆäÃû×Ö²»ÄÜËæ±
 	u8 Res;													//µ±´®¿Ú½ÓÊÕµ½Êý¾Ý  RXNE½«±»ÖÃ1 
 	if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)  //½ÓÊÕÖÐ¶Ï(½ÓÊÕµ½µÄÊý¾Ý±ØÐëÊÇ0x0d 0x0a½áÎ²)
 		{
-		Res =USART_ReceiveData(USART1);//(USART1->DR);	//¶ÁÈ¡½ÓÊÕµ½µÄÊý¾Ý		
-		if((USART_RX_STA&0x8000)==0)//½ÓÊÕÎ´Íê³É
-			{
-			if(USART_RX_STA&0x4000)//½ÓÊÕµ½ÁË0x0d
-				{
-				if(Res!=0x0a)
-					USART_RX_STA=0;//½ÓÊÕ´íÎó,ÖØÐÂ¿ªÊ¼
-				else 
-					{
-						USART_RX_STA |= 0x8000;	//½ÓÊÕÍê³ÉÁË 			  //½ÓÊÕµ½»Ø³µµÄºó×Ö½Ú  ÖÃÎ»×´Ì¬¼Ä´æÆ÷ 
-						printf("%s",USART_RX_BUF);
-						rev_flag = 1;
-						USART_RX_STA = 0;
-					}
-				}
-			else //»¹Ã»ÊÕµ½0X0D
-				{	
-				if(Res==0x0d)
-					USART_RX_STA|=0x4000;					 //½ÓÊÕµ½»Ø³µµÄÇ°Ò»×Ö½Ú  ÖÃÎ»×´Ì¬¼Ä´æÆ÷
-				else
-					{
-					USART_RX_BUF[USART_RX_STA&0X3FFF]=Res ;			//½«½ÓÊÕµÄÊý¾Ý ´æÈëÊý×éÖÐ
-					USART_RX_STA++;									//³¤¶È+1 ÎªÏÂÒ»´Î×ö×¼±¸
-					if(USART_RX_STA>(USART_REC_LEN-1))
-						USART_RX_STA=0;//½ÓÊÕÊý¾ÝÂú,ÖØÐÂ¿ªÊ¼½ÓÊÕ	  
-					}		 
-				}
-			}
-
+		Res =USART_ReceiveData(USART1);//(USART1->DR);	//¶ÁÈ¡½ÓÊÕµ½µÄÊý¾Ý	
+		inputDataToFifo(Res);
+//		if((USART_RX_STA&0x8000)!=0)//½ÓÊÕÎ´Íê³É
+//			{
+//			if(USART_RX_STA&0x4000)//½ÓÊÕµ½ÁË0x0d
+//				{
+//				if(Res!=0x0a)
+//					USART_RX_STA=0;//½ÓÊÕ´íÎó,ÖØÐÂ¿ªÊ¼
+//				else 
+//					{
+//						USART_RX_STA |= 0x8000;	//½ÓÊÕÍê³ÉÁË 			  //½ÓÊÕµ½»Ø³µµÄºó×Ö½Ú  ÖÃÎ»×´Ì¬¼Ä´æÆ÷ 
+//						//printf("%s",USART_RX_BUF);
+//				
+//						rev_flag = 1;
+//						USART_RX_STA = 0;
+//					}
+//				}
+//			else //»¹Ã»ÊÕµ½0X0D
+//				{	
+//				if(Res==0x0d)
+//					USART_RX_STA|=0x4000;					 //½ÓÊÕµ½»Ø³µµÄÇ°Ò»×Ö½Ú  ÖÃÎ»×´Ì¬¼Ä´æÆ÷
+//				else
+//					{
+//					USART_RX_BUF[USART_RX_STA&0X3FFF]=Res ;			//½«½ÓÊÕµÄÊý¾Ý ´æÈëÊý×éÖÐ
+//					USART_RX_STA++;									//³¤¶È+1 ÎªÏÂÒ»´Î×ö×¼±¸
+//					if(USART_RX_STA>(USART_REC_LEN-1))
+//						USART_RX_STA=0;//½ÓÊÕÊý¾ÝÂú,ÖØÐÂ¿ªÊ¼½ÓÊÕ	  
+//					}		 
+//				}
+//			}
      } 
-} 
+}
+
+void inputDataToFifo(uint8_t dat)
+{
+	uartFifo.buff[uartFifo.index] = dat;
+	if(uartFifo.index ++ == USART_REC_LEN -1)
+	{
+		uartFifo.index = 0;
+	}
+	uartFifo.count ++;
+	if(uartFifo.count == USART_REC_LEN -1)
+	{
+		memset(uartFifo.buff,0,sizeof(uartFifo.buff));
+		uartFifo.count = 0;
+		uartFifo.index = 0;
+		uartFifo.head = 0;		
+	}
+}
+int getDataforFifo(uint8_t *pdata)
+{
+	int i = 0;
+	for(i = 0 ; i < uartFifo.count; i ++)
+	{
+		pdata[i] = uartFifo.buff[uartFifo.head++];
+		if(uartFifo.head == USART_REC_LEN -1)
+		{
+			uartFifo.head = 0;
+		}
+	}
+	uartFifo.count -= i;
+	return i;
+	
+}
+
+
+
+
 #endif	
+
+
+
+
+
 
 
 
