@@ -7,7 +7,7 @@
 **********************************************************************************/
 
 #include "usart.h"
-
+#include "string.h"
 
 //////////////////////////////////////////////////////////////////
 //¼ÓÈëÒÔÏÂ´úÂë,Ö§³Öprintfº¯Êý,¶ø²»ÐèÒªÑ¡Ôñuse MicroLIB	  
@@ -75,7 +75,7 @@ u8 USART_RX_BUF[USART_REC_LEN/2];     //½ÓÊÕ»º³å,×î´óUSART_REC_LEN¸ö×Ö½Ú.
 //bit13~0£¬	½ÓÊÕµ½µÄÓÐÐ§×Ö½ÚÊýÄ¿
 u16 USART_RX_STA=0;       //½ÓÊÕ×´Ì¬±ê¼Ç	  
 
-struct Fifo_usart uartFifo = {0,0,0};
+struct Fifo_usart uartFifo = {0,0,0,0};
 //³õÊ¼»¯IO ´®¿Ú1 
 //bound:²¨ÌØÂÊ
 void uart_init(u32 bound){
@@ -136,9 +136,23 @@ int rev_flag = 0;
 void USART1_IRQHandler(void)                	//´®¿Ú1ÖÐ¶ÏÏìÓ¦³ÌÐò		 ÆäÃû×Ö²»ÄÜËæ±ã¶¨Òå
 {	
 	u8 Res;													//µ±´®¿Ú½ÓÊÕµ½Êý¾Ý  RXNE½«±»ÖÃ1 
+	static u8 check[2];
 	if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)  //½ÓÊÕÖÐ¶Ï(½ÓÊÕµ½µÄÊý¾Ý±ØÐëÊÇ0x0d 0x0a½áÎ²)
 		{
-		Res =USART_ReceiveData(USART1);//(USART1->DR);	//¶ÁÈ¡½ÓÊÕµ½µÄÊý¾Ý	
+		Res =USART1->DR;//USART_ReceiveData(USART1);//(USART1->DR);	//¶ÁÈ¡½ÓÊÕµ½µÄÊý¾Ý	
+		if(check[0])
+		{
+			if(Res == 0xaa)
+			{
+				flag_send = 1;				
+			}
+			else
+			{
+				check[0] = 0;
+			}
+		}
+		if(Res == 0x55)
+			check[0] = 1;		
 		inputDataToFifo(Res);
 //		if((USART_RX_STA&0x8000)!=0)//½ÓÊÕÎ´Íê³É
 //			{
@@ -170,34 +184,48 @@ void USART1_IRQHandler(void)                	//´®¿Ú1ÖÐ¶ÏÏìÓ¦³ÌÐò		 ÆäÃû×Ö²»ÄÜËæ±
 //			}
      } 
 }
-
-void inputDataToFifo(uint8_t dat)
+void resetStruct()
 {
-	uartFifo.buff[uartFifo.index] = dat;
-	if(uartFifo.index ++ == USART_REC_LEN -1)
+		memset(uartFifo.buff,0,sizeof(uartFifo.buff));
+		uartFifo.count = 0;
+		uartFifo.index = 0;
+		uartFifo.head = 0;		
+}
+static void inputDataToFifo(uint8_t dat)
+{
+	uartFifo.buff[uartFifo.index ++] = dat;	
+	if(uartFifo.index == USART_REC_LEN -1)
 	{
 		uartFifo.index = 0;
 	}
 	uartFifo.count ++;
 	if(uartFifo.count == USART_REC_LEN -1)
 	{
-		memset(uartFifo.buff,0,sizeof(uartFifo.buff));
-		uartFifo.count = 0;
-		uartFifo.index = 0;
-		uartFifo.head = 0;		
+		resetStruct();
 	}
 }
+
 int getDataforFifo(uint8_t *pdata)
 {
-	int i = 0;
-	for(i = 0 ; i < uartFifo.count; i ++)
+	int i = 0;	
+	int count = uartFifo.count;
+	if(flag_send == 1)
 	{
-		pdata[i] = uartFifo.buff[uartFifo.head++];
+		return 0;
+	}
+	if(count % 2 != 0)
+		return 0;
+	memcpy(uartFifo.revbuff,uartFifo.buff,USART_REC_LEN);
+	for(i = 0 ; i < count; i ++)
+	{
+		pdata[i] = uartFifo.revbuff[uartFifo.head++];
 		if(uartFifo.head == USART_REC_LEN -1)
 		{
 			uartFifo.head = 0;
 		}
 	}
+	
+	uartFifo.sum +=i;
 	uartFifo.count -= i;
 	return i;
 	

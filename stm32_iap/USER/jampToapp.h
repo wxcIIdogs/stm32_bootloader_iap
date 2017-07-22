@@ -12,7 +12,7 @@
 typedef void(*pFunction)(void);
 
 void writeDataToflash(char *Send_Buffer,int len);
-
+void jampToload(unsigned int address);
 void initFlash(void);
 void saveFlash(void);
 

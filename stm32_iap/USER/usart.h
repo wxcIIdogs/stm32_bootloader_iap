@@ -9,17 +9,20 @@
 
 struct Fifo_usart
 {
-	volatile uint32_t count;
-	volatile uint32_t index;
-	volatile uint32_t head;
-	volatile uint8_t buff[USART_REC_LEN];
+	uint32_t count;
+  uint32_t index;
+	uint32_t head;
+	uint32_t sum;
+	uint8_t buff[USART_REC_LEN];
+	uint8_t revbuff[USART_REC_LEN];
+	
 };
 
 extern struct Fifo_usart uartFifo;
-
+extern int flag_send;
 
 extern int getDataforFifo(uint8_t *pdata);
-void inputDataToFifo(uint8_t dat);
+static void inputDataToFifo(uint8_t dat);
 extern u8  USART_RX_BUF[USART_REC_LEN/2]; //接收缓冲,最大USART_REC_LEN个字节.末字节为换行符 
 extern u16 USART_RX_STA;         		//接收状态标记	
 //如果想串口中断接收，请不要注释以下宏定义

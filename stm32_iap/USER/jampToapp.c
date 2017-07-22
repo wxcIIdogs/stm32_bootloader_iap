@@ -5,6 +5,27 @@
 pFunction Jump_To_Application;
 uint32_t JumpAddress;
 volatile FLASH_Status FLASHStatus = FLASH_COMPLETE;
+void jampToload(uint32_t address)
+{
+//	uint32_t aa = ((*(uint32_t *)address + 4)&0xFF000000);
+//	if(((*(uint32_t *)address + 4)&0xFF000000)==0x08000000)
+//	{
+		Jump_To_Application=(pFunction)(*(vu32*)(address+4)); 
+		__set_MSP(*(vu32*)address);
+		Jump_To_Application();
+//	}
+}
+//void iap_load_app(u32 appxaddr)
+//{
+//       if(((*(vu32*)appxaddr)&0x2FFE0000)==0x20000000)      //??????????.
+//       {
+//              jump2app=(iapfun)*(vu32*)(appxaddr+4);        
+////????????????????(????)         
+//              MSR_MSP(*(vu32*)appxaddr);                               
+////???APP????(??????????????????)
+//              jump2app();    //???APP.
+//       }
+//}
 void initFlash()
 {
 	uint32_t NbrOfPage;
@@ -21,20 +42,19 @@ void initFlash()
 		FLASHStatus = FLASH_ErasePage(WRITE_ADDRESS + (FLASH_PAGE_SIZE * EraseCounter));
 	}
 }
-static uint32_t Address = WRITE_ADDRESS+4;
+static uint32_t Address = WRITE_ADDRESS;
 void writeDataToflash(char *Send_Buffer,int len)
 {
 	/* Program Flash Bank1 */
-	len = len - len % 4;
-	uint32_t addr_data = 0;
+	len = len - len % 2;
+	uint16_t addr_data = 0;
 	while((Address < WRITE_ADDRESS + WRITE_SIZE) && (FLASHStatus == FLASH_COMPLETE) && addr_data < len)
 	{
 		/* Convert u8 to u32 then write to flash */
-			uint32_t Data = Send_Buffer[addr_data] | (Send_Buffer[addr_data+1] << 8) | (Send_Buffer[addr_data+2] << 16) | (Send_Buffer[addr_data+3] << 24);
-			FLASHStatus = FLASH_ProgramWord(Address, Data);
-			Address = Address + 4;
-			addr_data = addr_data +4;
-			printf("%X\r\n",Address);			
+			uint16_t Data = Send_Buffer[addr_data] | (Send_Buffer[addr_data+1] << 8);
+			FLASHStatus = FLASH_ProgramHalfWord(Address, Data);
+			Address = Address + 2;
+			addr_data = addr_data + 2;					
 	}
 }
 void saveFlash()
